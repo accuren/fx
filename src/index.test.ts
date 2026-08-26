@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { RateTable, convert, describe as line, dec, invert, money, toString, type Rate } from "./index.ts";
+import { RateTable, convert, convertAll, coverage, describe as line, dec, invert, money, toString, type Rate } from "./index.ts";
 
 const rate = (date: string, value: string): Rate => ({
   base: "USD",
@@ -102,4 +102,50 @@ test("inverting a rate keeps its provenance visible", () => {
 test("currency codes are matched case-insensitively", () => {
   const c = convert(money("100", "usd"), "idr", "2026-08-14", table, policy);
   assert.equal(toString(c.to.amount), "1610300");
+});
+
+test("coverage answers the missing-rate question before an export does", () => {
+  const report = coverage(
+    "USD",
+    "IDR",
+    ["2026-08-14", "2026-08-16", "2026-08-17", "2020-01-01"],
+    table,
+    "previous_published",
+  );
+  assert.deepEqual(report.exact, ["2026-08-14", "2026-08-17"]);
+  // The Sunday resolves, but by reaching back two days — worth knowing.
+  assert.deepEqual(report.fallback, [{ date: "2026-08-16", usedDate: "2026-08-14", driftDays: 2 }]);
+  // Before the table starts, nothing can answer it.
+  assert.deepEqual(report.missing, ["2020-01-01"]);
+});
+
+test("coverage deduplicates and sorts, so a report reads the same every run", () => {
+  const report = coverage("USD", "IDR", ["2026-08-17", "2026-08-14", "2026-08-14"], table, "error");
+  assert.deepEqual(report.exact, ["2026-08-14", "2026-08-17"]);
+});
+
+test("convertAll totals each amount on its own date", () => {
+  const { conversions, total } = convertAll(
+    [
+      { amount: money("100", "USD"), date: "2026-01-18" },
+      { amount: money("100", "USD"), date: "2026-08-14" },
+    ],
+    "IDR",
+    table,
+    policy,
+  );
+  assert.equal(conversions.length, 2);
+  // 1,584,200 + 1,610,300 — converting both at one rate would be wrong twice.
+  assert.equal(toString(total.amount), "3194500");
+});
+
+test("convertAll names the date it could not resolve rather than skipping it", () => {
+  assert.throws(
+    () =>
+      convertAll([{ amount: money("100", "USD"), date: "2020-01-01" }], "IDR", table, {
+        weekendRule: "error",
+        scale: 0,
+      }),
+    /2020-01-01/,
+  );
 });

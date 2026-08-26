@@ -42,6 +42,12 @@ describe(c);
   — so there is no default.
 - `invert(rate)` — for tables published in one direction only. The inverted
   rate keeps its provenance visible in `source`.
+- `coverage(base, quote, dates, table, rule)` — check a whole set of event
+  dates *before* an export relies on them, separating "resolved exactly" from
+  "resolved by reaching to another day", and listing what nothing can answer.
+- `convertAll(items, to, table, policy)` — convert each amount on its own date
+  and total them. Throws naming the date it could not resolve, because a total
+  that silently skipped an event is worse than no total.
 
 MIT.
 

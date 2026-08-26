@@ -9,7 +9,7 @@
  * Every conversion here carries the rate, its source, and its date, so an
  * adviser or an auditor can retrace the arithmetic instead of trusting it.
  */
-import { type Dec, dec, div, mul, round, toString } from "@accuren/multiplier";
+import { type Dec, add, dec, div, mul, round, toString } from "@accuren/multiplier";
 
 export type { Dec };
 // Re-exported so a caller can build amounts and print them without reaching
@@ -201,4 +201,65 @@ export function describe(conversion: Conversion): string {
   const drift =
     rateDrift === 0 ? "" : ` (rate from ${rate.date}, ${rateDrift} day${rateDrift === 1 ? "" : "s"} from ${requestedDate})`;
   return `${toString(from.amount)} ${from.currency} → ${toString(to.amount)} ${to.currency} at ${toString(rate.value)} [${rate.source}]${drift}`;
+}
+
+export type CoverageReport = {
+  /** Dates with a rate published on the day itself. */
+  readonly exact: string[];
+  /** Dates that would resolve, but only by falling back to another day. */
+  readonly fallback: { date: string; usedDate: string; driftDays: number }[];
+  /** Dates no rule can answer. These are the ones that stop an export. */
+  readonly missing: string[];
+};
+
+/**
+ * Check a whole set of event dates *before* relying on them.
+ *
+ * Finding out mid-export that a rate is missing is the wrong time to find out.
+ * This answers the question up front, and separates "resolved exactly" from
+ * "resolved by reaching to another day" — the second is legitimate under most
+ * weekend rules, but you should know how far it reached.
+ */
+export function coverage(
+  base: Currency,
+  quote: Currency,
+  dates: readonly string[],
+  table: RateTable,
+  rule: WeekendRule,
+): CoverageReport {
+  const exact: string[] = [];
+  const fallback: { date: string; usedDate: string; driftDays: number }[] = [];
+  const missing: string[] = [];
+
+  for (const date of [...new Set(dates)].sort()) {
+    if (table.on(base, quote, date)) {
+      exact.push(date);
+      continue;
+    }
+    try {
+      const resolved = table.resolve(base, quote, date, rule);
+      fallback.push({ date, usedDate: resolved.date, driftDays: daysBetween(date, resolved.date) });
+    } catch {
+      missing.push(date);
+    }
+  }
+
+  return { exact, fallback, missing };
+}
+
+/**
+ * Convert several amounts on their own dates and total them.
+ *
+ * Throws on the first date that cannot be resolved, naming it — a total that
+ * silently skipped an event is worse than no total.
+ */
+export function convertAll(
+  items: readonly { amount: Money; date: string }[],
+  to: Currency,
+  table: RateTable,
+  policy: ConversionPolicy,
+): { conversions: Conversion[]; total: Money } {
+  const conversions = items.map((item) => convert(item.amount, to, item.date, table, policy));
+  const total = conversions.reduce<Dec>((acc, c) => add(acc, c.to.amount), dec("0"));
+  return { conversions, total: money(round(total, policy.scale), to) };
 }
