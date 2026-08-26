@@ -1,0 +1,36 @@
+{
+  "name": "@accuren/fx",
+  "version": "0.1.0",
+  "description": "Historical currency conversion with provenance: the rate that applied on the day of the event, its source, and its date, attached to every figure.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "fx",
+    "exchange-rates",
+    "historical",
+    "tax",
+    "provenance"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/accuren/fx.git"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@11.8.0",
+  "dependencies": {
+    "@accuren/multiplier": "^0.1.0"
+  }
+}
